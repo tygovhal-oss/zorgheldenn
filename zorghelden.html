@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>Zorghelden 3.11 – Uitgebreide klachten</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(120deg,#fff7f0,#eef8ff);color:#1f2937;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;}
+.wrap{max-width:900px;width:100%;background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.08);padding:20px;}
+header{display:flex;justify-content:space-between;align-items:center;}
+header h1{margin:0;font-size:22px;}
+.pill{background:#f3f4f6;padding:6px 10px;border-radius:10px;font-size:13px;margin-left:6px;}
+main{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;}
+.panel{background:linear-gradient(180deg,#fff,#fbfdff);padding:16px;border-radius:12px;border:1px solid #eef2ff;}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.big{font-size:36px;}
+.meds{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;}
+.med{padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:600;box-shadow:0 6px 14px rgba(2,6,23,0.06);transition:0.2s;}
+.med:hover{transform:translateY(-3px);}
+.par{background:#fef3c7;}.ibu{background:#dbeafe;}.ab{background:#fed7e2;}.hoest{background:#bbf7d0;}.neus{background:#fde68a;}
+.med.correct{background:#16a34a;color:white;}
+.med.wrong{background:#ef4444;color:white;}
+.msg{min-height:48px;padding:10px;border-radius:10px;text-align:center;font-weight:700;}
+.msg.good{background:rgba(16,185,129,0.12);color:#16a34a;}
+.msg.bad{background:rgba(239,68,68,0.08);color:#ef4444;}
+.msg.warn{background:rgba(250,204,21,0.08);color:#b45309;}
+.edu{margin-top:10px;padding:10px;border-radius:8px;background:#fbfdff;border:1px solid #eef2ff;font-size:14px;text-align:left;}
+.controls{display:flex;gap:8px;margin-top:12px;justify-content:center;}
+.large-btn{padding:10px 14px;border-radius:10px;border:none;font-weight:700;cursor:pointer;}
+.next{background:#7c3aed;color:white;}
+.restart{background:#f3f4f6;}
+.progress{height:10px;width:100%;background:#f1f5f9;border-radius:999px;overflow:hidden;margin-top:6px;position:relative;}
+.progress>div{height:100%;background:linear-gradient(90deg,#60a5fa,#a78bfa);transition:width 0.2s;}
+.progress.blink div{animation:blink 0.5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.heart{font-size:16px;margin-right:2px;}
+.heart.correct{color:green;}
+.heart.wrong{color:red;}
+.heart.unset{color:#ccc;}
+.highscores{margin-top:12px;font-size:14px;text-align:left;}
+.highscores h4{margin:4px 0;}
+@media(max-width:700px){main{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>Zorghelden 3.11 – Uitgebreide klachten</h1>
+<div>
+<span class="pill" id="levelLabel">Level 1</span>
+<span class="pill">Ronde: <span id="roundLabel">1</span></span>
+<span class="pill">Score: <span id="scoreLabel">0</span></span>
+<span class="pill">Beste score: <span id="bestScoreLabel">0</span></span>
+</div>
+</header>
+
+<main>
+<section class="panel">
+<h3>Patiënten</h3>
+<div id="patientsList"></div>
+<div id="highscores" class="highscores"></div>
+</section>
+
+<section class="panel center">
+<div class="center">
+<div class="big" id="patientAvatar">🧑</div>
+<div style="font-weight:800;font-size:18px" id="patientName">Patiënt</div>
+<div class="small" id="patientComplaint">Klacht</div>
+<div class="progress" id="progressContainer"><div id="progressBar" style="width:100%"></div></div>
+<div class="small" id="timeLabel">15s</div>
+<div class="meds" id="medButtons"></div>
+<div id="messageBox" class="msg"></div>
+<div id="eduBox" class="edu" style="display:none"></div>
+<div class="controls">
+<button class="large-btn restart" id="restartBtn">🔁 Herstart</button>
+<button class="large-btn next" id="nextLevelBtn" style="display:none">➡️ Volgend Level</button>
+<button class="large-btn next" id="nextPatientBtn" style="display:none">➡️ Volgende patiënt</button>
+</div>
+</div>
+</section>
+</main>
+</div>
+
+<script>
+(function(){
+const MEDICINES = [
+{id:'paracetamol',label:'Paracetamol',short:'Pijnstiller & koortsverlager',edu:'Paracetamol vermindert pijn en koorts. Veel gebruikt bij hoofdpijn en milde griep.'},
+{id:'ibuprofen',label:'Ibuprofen',short:'Ontstekingsremmer & pijnstiller',edu:'Ibuprofen vermindert pijn en ontsteking. Niet gebruiken bij maagproblemen of bepaalde medicijnen.'},
+{id:'antibiotica',label:'Antibiotica',short:'Tegen bacteriële infecties',edu:'Antibiotica bestrijden bacteriële infecties. Gebruik alleen als voorgeschreven door arts.'},
+{id:'hoestsiroop',label:'Hoestsiroop',short:'Verzacht hoest',edu:'Hoestsiroop helpt bij hoestklachten of slijm. Gebruik volgens dosering.'},
+{id:'neusspray',label:'Neusspray',short:'Verlicht verstopte neus',edu:'Neusspray vermindert zwelling in de neus. Kortdurend gebruik aanbevolen.'}
+];
+
+// Lijst uitgebreide klachten
+let symptomList=[
+    'Koorts','Hoofdpijn','Pijn','Hoest','Verstopte neus',
+    'Spierpijn','Infectie','Keelpijn','Sinusdruk','Zweertjes',
+    'Keelpijn & Hoest','Koorts & Spierpijn','Ontsteking & Pijn',
+    'Sinusdruk & Hoofdpijn','Hoest & Keelpijn','Verstopte neus & Koorts',
+    'Hoofdpijn & Spierpijn','Infectie & Koorts','Hoest & Spierpijn','Keelpijn & Zweertjes'
+];
+
+// Functie bepaalt het juiste medicijn
+function determineMedicineForComplaint(complaint){
+    complaint = complaint.toLowerCase();
+    if(complaint.includes('koorts') || complaint.includes('hoofdpijn') || complaint.includes('pijn')){
+        return 'paracetamol';
+    } else if(complaint.includes('spierpijn') || complaint.includes('ontsteking')){
+        return 'ibuprofen';
+    } else if(complaint.includes('infectie') || complaint.includes('zweertjes')){
+        return 'antibiotica';
+    } else if(complaint.includes('hoest')){
+        return 'hoestsiroop';
+    } else if(complaint.includes('neus') || complaint.includes('sinus')){
+        return 'neusspray';
+    } else {
+        return 'paracetamol'; // fallback
+    }
+}
+
+// Genereer levels en patiënten
+const LEVELS = [];
+for(let i=1;i<=10;i++){
+    let patients=[];
+    for(let j=1;j<=i+4;j++){
+        let symptom = symptomList[Math.floor(Math.random()*symptomList.length)];
+        let need = determineMedicineForComplaint(symptom);
+        patients.push({name:'P'+i+j,complaint:symptom,need:need,avatar:'🧑',health:3});
+    }
+    LEVELS.push({id:i,name:'Level '+i,rounds:7+i,patients:patients,timePerQuestion:15});
+}
+
+// Game state
+let currentLevelIndex=0,roundIndex=1,score=0,currentPatient=null,timer=null,timeLeft=15,remainingRoundsInLevel=0;
+let highscores=JSON.parse(localStorage.getItem('highscores')||'[]');
+
+// DOM elementen
+const levelLabel=document.getElementById('levelLabel');
+const roundLabel=document.getElementById('roundLabel');
+const scoreLabel=document.getElementById('scoreLabel');
+const bestScoreLabel=document.getElementById('bestScoreLabel');
+const patientsList=document.getElementById('patientsList');
+const highscoresDiv=document.getElementById('highscores');
+const patientAvatar=document.getElementById('patientAvatar');
+const patientName=document.getElementById('patientName');
+const patientComplaint=document.getElementById('patientComplaint');
+const progressBar=document.getElementById('progressBar');
+const timeLabel=document.getElementById('timeLabel');
+const medButtons=document.getElementById('medButtons');
+const messageBox=document.getElementById('messageBox');
+const eduBox=document.getElementById('eduBox');
+const nextLevelBtn=document.getElementById('nextLevelBtn');
+const nextPatientBtn=document.getElementById('nextPatientBtn');
+const restartBtn=document.getElementById('restartBtn');
+
+let awaiting=false;
+
+// Functies
+function renderMedButtons(){
+    medButtons.innerHTML='';
+    MEDICINES.forEach(m=>{
+        const btn=document.createElement('button');
+        btn.className='med '+(m.id==='paracetamol'?'par':m.id==='ibuprofen'?'ibu':m.id==='antibiotica'?'ab':m.id==='hoestsiroop'?'hoest':'neus');
+        btn.textContent=m.label;
+        btn.onclick=()=>handleChoice(m.id,btn);
+        medButtons.appendChild(btn);
+    });
+}
+
+function resetMedButtonsColors(){
+    Array.from(medButtons.children).forEach(b=>{
+        b.classList.remove('correct','wrong');
+    });
+}
+
+function renderPatientsPanel(){
+    const level=LEVELS[currentLevelIndex];
+    patientsList.innerHTML='';
+    level.patients.forEach(p=>{
+        const el=document.createElement('div');
+        el.style.padding='6px';
+        el.style.borderBottom='1px solid #eee';
+        let hearts='';
+        for(let i=0;i<3;i++){
+            let cls='unset';
+            if(p.health<=0) cls='correct';
+            else if(p.health<=2 && i>p.health-1) cls='wrong';
+            hearts+='<span class="heart '+cls+'">❤️</span>';
+        }
+        el.innerHTML=p.name+' – '+p.complaint+' '+hearts;
+        patientsList.appendChild(el);
+    });
+}
+
+function updateHeader(){
+    const level=LEVELS[currentLevelIndex];
+    levelLabel.textContent=level.name;
+    roundLabel.textContent=roundIndex+' / '+level.rounds;
+    scoreLabel.textContent=score;
+    bestScoreLabel.textContent=Math.max(...highscores.concat(0));
+}
+
+function updateHighscores(){
+    highscores.sort((a,b)=>b-a);
+    highscoresDiv.innerHTML='<h4>🏆 Top scores</h4>'+highscores.slice(0,5).map((s,i)=>'<div>'+ (i+1)+'. '+s+'</div>').join('');
+}
+
+function startTimer(){
+    const level=LEVELS[currentLevelIndex];
+    timeLeft=level.timePerQuestion;
+    updateTimeUI();
+    clearInterval(timer);
+    timer=setInterval(()=>{
+        timeLeft--;
+        updateTimeUI();
+        if(timeLeft<=0){
+            clearInterval(timer);
+            handleTimeout();
+        }
+    },1000);
+}
+
+function updateTimeUI(){
+    const pct=Math.max(0,(timeLeft/LEVELS[currentLevelIndex].timePerQuestion)*100);
+    progressBar.style.width=pct+'%';
+    timeLabel.textContent=timeLeft+'s';
+}
+
+function showCurrentPatient(){
+    if(!currentPatient)return;
+    patientAvatar.textContent=currentPatient.avatar||'🙂';
+    patientName.textContent=currentPatient.name;
+    patientComplaint.textContent=currentPatient.complaint;
+    resetMedButtonsColors();
+}
+
+function handleChoice(medId, btn){
+    if(awaiting) return;
+    awaiting=true;
+    clearInterval(timer);
+
+    const med = MEDICINES.find(m=>m.id===medId);
+    const correctMed = MEDICINES.find(m=>m.id===currentPatient.need);
+    const isCorrect = (medId === currentPatient.need);
+    const p = LEVELS[currentLevelIndex].patients.find(x=>x.name===currentPatient.name);
+
+    if(isCorrect){
+        score++;
+        messageBox.className='msg good';
+        messageBox.textContent='✅ Goed! '+currentPatient.name+' krijgt het juiste middel.';
+        p.health=0;
+    } else {
+        messageBox.className='msg bad';
+        messageBox.textContent='❌ Verkeerd! '+currentPatient.name+' kreeg niet het juiste middel.';
+        p.health=Math.max(0,(p.health||1)-1);
+        btn.classList.add('wrong');
+    }
+
+    // Highlight correct medicijn
+    Array.from(medButtons.children).forEach(b=>{
+        if(b.textContent===correctMed.label)b.classList.add('correct');
+    });
+
+    // Toon uitleg inclusief correct medicijn
+    eduBox.style.display='block';
+    eduBox.innerHTML = '<strong>Correct medicijn: '+correctMed.label+'</strong><br>'+correctMed.short+'<hr style="margin:8px 0">'+correctMed.edu;
+
+    nextPatientBtn.style.display='inline-block';
+    renderPatientsPanel();
+    updateHeader();
+}
+
+nextPatientBtn.onclick = ()=>{
+    nextPatientBtn.style.display='none';
+    messageBox.textContent='';
+    eduBox.style.display='none';
+    awaiting=false;
+    roundIndex++;
+    remainingRoundsInLevel--;
+    if(remainingRoundsInLevel<=0){endLevel();}else{nextQuestion();}
+};
+
+function handleTimeout(){
+    messageBox.className='msg warn';
+    messageBox.textContent='⏰ Te laat! '+currentPatient.name+' moest te lang wachten.';
+    const p=LEVELS[currentLevelIndex].patients.find(x=>x.name===currentPatient.name);
+    if(p)p.health=Math.max(0,(p.health||1)-1);
+    eduBox.style.display='block';
+    eduBox.innerHTML='<strong>Tip:</strong> Lees de uitleg bij elk medicijn om sneller te kiezen.';
+    nextPatientBtn.style.display='inline-block';
+}
+
+function nextQuestion(){
+    const level=LEVELS[currentLevelIndex];
+    const alive=level.patients.filter(p=>(p.health||0)>0);
+    currentPatient=alive.length>0?alive[Math.floor(Math.random()*alive.length)]:level.patients[Math.floor(Math.random()*level.patients.length)];
+    showCurrentPatient();
+    updateHeader();
+    startTimer();
+}
+
+function endLevel(){
+    clearInterval(timer);
+    messageBox.className='msg good';
+    messageBox.textContent='🎉 Level voltooid! Score: '+score;
+    eduBox.style.display='block';
+    eduBox.innerHTML='<strong>Wat nu?</strong> Klik "Volgend Level" of "Herstart".';
+    highscores.push(score);
+    localStorage.setItem('highscores',JSON.stringify(highscores));
+    updateHighscores();
+    updateHeader();
+    if(currentLevelIndex<LEVELS.length-1){nextLevelBtn.style.display='inline-block';}
+    else{nextLevelBtn.style.display='none';messageBox.textContent='🏁 Spel klaar! Totaalscore: '+score;}
+}
+
+nextLevelBtn.onclick=()=>{currentLevelIndex++;startLevel(currentLevelIndex);nextLevelBtn.style.display='none';};
+restartBtn.onclick=()=>{currentLevelIndex=0;startLevel(0);nextLevelBtn.style.display='none';};
+
+function startLevel(index){
+    const rawLevel=LEVELS[index];
+    rawLevel.patients=rawLevel.patients.map(p=>({...p,health:3}));
+    roundIndex=0;
+    score=0;
+    remainingRoundsInLevel=rawLevel.rounds;
+    currentLevelIndex=index;
+    renderMedButtons();
+    renderPatientsPanel();
+    nextQuestion();
+    updateHeader();
+    nextLevelBtn.style.display='none';
+    updateHighscores();
+}
+
+renderMedButtons();
+startLevel(0);
+
+})();
+</script>
+</body>
+</html>
